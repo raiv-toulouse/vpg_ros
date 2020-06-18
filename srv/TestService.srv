@@ -1,2 +1,4 @@
 ---
 float32[] tab1
+int8 nbLignes
+int8 nbColonnes

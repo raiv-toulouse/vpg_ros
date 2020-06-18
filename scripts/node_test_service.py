@@ -2,6 +2,7 @@
 
 import rospy
 from vpg_ros.srv import TestService,TestServiceResponse
+import numpy as np
 
 rospy.wait_for_service('test_service')
 try:
@@ -9,6 +10,10 @@ try:
     test = rospy.ServiceProxy('test_service', TestService)
     resp = test()
     print(resp.tab1)
+    print(resp.nbLignes)
+    print(resp.nbColonnes)
     print(type(resp.tab1))
+    a = np.asarray(resp.tab1).reshape(resp.nbLignes,resp.nbColonnes)
+    print(a)
 except rospy.ServiceException as e:
     print("Service call failed: %s"%e)

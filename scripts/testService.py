@@ -10,8 +10,7 @@ def envoyer(req):
     #t = [1.1, 2.2, 3.3, 4.4, 5.5]
     t = np.array([[1.1, 2.2], [3.3, 4.4]])
     print(type(t))
-    print(t.shape)
-    return TestServiceResponse(t)
+    return TestServiceResponse(tuple(t.reshape(1,-1)[0]),2,2)
 
 
 rospy.init_node('testService_server')
