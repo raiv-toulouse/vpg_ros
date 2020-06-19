@@ -1,29 +1,22 @@
+# coding: utf-8
+
 import rospy
 import vrep
 import os,time
 import numpy as np
+from vpg_ros.srv import AddObjects,AddObjectsResponse
+
 
 class ObjetsVREP(object):
     def __init__(self,workspace_limits, obj_mesh_dir, num_obj):
-        rospy.init_node('objetsVREP_server')
+        s = rospy.Service('add_objects', AddObjects, self.add_objects)
         ipVREP = '127.0.0.1'
-        self.sim_client = vrep.simxStart(ipVREP, 19997, True, True, 5000, 5)  # Connect to V-REP on port 19997
-        print('init = ',self.sim_client)
-#        s = rospy.Service('add_objects', AddObjects, self.add_objects)
-#         if rospy.has_param('/sim_client'):
-#             print('get sim_client')
-#             self.sim_client = rospy.get_param("/sim_client")
-#         else:         # Connect to simulator
-#             ipVREP = '127.0.0.1'
-#             #vrep.simxFinish(-1)  # Just in case, close all opened connections
-#             self.sim_client = vrep.simxStart(ipVREP, 19997, True, True, 5000, 5)  # Connect to V-REP on port 19997
-#             print('init = ',self.sim_client)
-#             if self.sim_client == -1:
-#                 print('Failed to connect to simulation (V-REP remote API server). Exiting.')
-#                 exit()
-#             else:
-#                 print('Connected to simulation.')
-#                 rospy.set_param('/sim_client', self.sim_client)
+        self.sim_client = vrep.simxStart(ipVREP, 20001, True, True, 5000, 5)  # Connect to V-REP on port 19997
+        if self.sim_client == -1:
+            print('Failed to connect to simulation (V-REP remote API server). Exiting.')
+            exit()
+        else:
+            print('Connected to simulation on port {}'.format(self.sim_client))
         # Define colors for object meshes (Tableau palette)
         self.color_space = np.asarray([[78.0, 121.0, 167.0],  # blue
                                        [89.0, 161.0, 79.0],  # green
@@ -43,13 +36,11 @@ class ObjetsVREP(object):
         # Randomly choose objects to add to scene
         self.obj_mesh_ind = np.random.randint(0, len(self.mesh_list), size=self.num_obj)
         self.obj_mesh_color = self.color_space[np.asarray(range(self.num_obj)) % 10, :]
-        # Add objects to simulation environment
-        self.add_objects()
 
-    def add_objects(self):
+
+    def add_objects(self,req):
         # Add each object to robot workspace at x,y location and orientation (random or pre-loaded)
         self.object_handles = []
-        sim_obj_handles = []
         for object_idx in range(len(self.obj_mesh_ind)):
             curr_mesh_file = os.path.join(self.obj_mesh_dir, self.mesh_list[self.obj_mesh_ind[object_idx]])
             curr_mesh_file = os.path.abspath(curr_mesh_file)
@@ -59,14 +50,7 @@ class ObjetsVREP(object):
             object_position = [drop_x, drop_y, 0.15]
             object_orientation = [2*np.pi*np.random.random_sample(), 2*np.pi*np.random.random_sample(), 2*np.pi*np.random.random_sample()]
             object_color = [self.obj_mesh_color[object_idx][0], self.obj_mesh_color[object_idx][1], self.obj_mesh_color[object_idx][2]]
-
-            print(object_color)
-            print(curr_mesh_file, curr_shape_name)
-            print('sim_client = ',self.sim_client)
             ret_resp,ret_ints,ret_floats,ret_strings,ret_buffer = vrep.simxCallScriptFunction(self.sim_client, 'remoteApiCommandServer',vrep.sim_scripttype_childscript,'importShape',[0,0,255,0], object_position + object_orientation + object_color, [curr_mesh_file, curr_shape_name], bytearray(), vrep.simx_opmode_blocking)
-
-            print(ret_resp,ret_ints,ret_floats,ret_strings,ret_buffer)
-
             if ret_resp == 8:
                 print('Failed to add new objects to simulation. Please restart.')
                 exit()
@@ -75,3 +59,4 @@ class ObjetsVREP(object):
             time.sleep(2)
         self.prev_obj_positions = []
         self.obj_positions = []
+        return AddObjectsResponse()

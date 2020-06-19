@@ -1,3 +1,5 @@
+# coding: utf-8
+
 import time
 import numpy as np
 import vrep
@@ -8,11 +10,9 @@ import rospy
 class RobotVREP(object):
     def __init__(self, workspace_limits,ip_vrep):
         self.workspace_limits = workspace_limits
-        rospy.init_node('robotVREP_server')
         s = rospy.Service('cmd_gripper', GripperCmd, self.cmdGripper)
         s = rospy.Service('robot_grasp', CoordAction, self.grasp)
         s = rospy.Service('robot_push', CoordAction, self.push)
-
         # Make sure to have the server side running in V-REP:
         # in a child script of a V-REP scene, add following command
         # to be executed just once, at simulation start:
@@ -27,8 +27,12 @@ class RobotVREP(object):
         # MODIFY remoteApiConnections.txt
 
         # Connect to simulator
-        vrep.simxFinish(-1) # Just in case, close all opened connections
         self.sim_client = vrep.simxStart(ip_vrep, 19997, True, True, 5000, 5) # Connect to V-REP on port 19997
+        if self.sim_client == -1:
+            print('Failed to connect to simulation (V-REP remote API server). Exiting.')
+            exit()
+        else:
+            print('Connected to simulation on port {}'.format(self.sim_client))
         self.restart_sim()
 
     def restart_sim(self):
