@@ -6,7 +6,7 @@ import threading
 import argparse
 import numpy as np
 import cv2
-from robot import Robot
+from robotsim import RobotSim
 from trainer import Trainer
 from logger import Logger
 import utils
@@ -42,15 +42,13 @@ def main(args):
     # Set random seed
     np.random.seed(random_seed)
     # Initialize pick-and-place system (camera and robot)
-    robot = Robot(True, obj_mesh_dir, num_obj, workspace_limits,
-                  None, None, None, None,
-                  is_testing, test_preset_cases, test_preset_file)
+    robot = RobotSim(obj_mesh_dir, workspace_limits, is_testing)
     # Initialize trainer
     trainer = Trainer(method, push_rewards, future_reward_discount,
                       is_testing, load_snapshot, snapshot_file)
     # Initialize data logger
     logger = Logger(continue_logging, logging_directory)
-    logger.save_camera_info(robot.cam_intrinsics, robot.cam_pose, robot.cam_depth_scale) # Save camera intrinsics and pose
+    #logger.save_camera_info(robot.cam_intrinsics, robot.cam_pose, robot.cam_depth_scale) # Save camera intrinsics and pose
     logger.save_heightmap_info(workspace_limits, heightmap_resolution) # Save heightmap parameters
     # Find last executed iteration of pre-loaded log, and load execution info and RL variables
     if continue_logging:
