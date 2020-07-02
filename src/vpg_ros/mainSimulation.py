@@ -7,9 +7,9 @@ import threading
 import numpy as np
 import cv2
 import rospy
-from trainer import Trainer
-from logger import Logger
-import utils
+from vpg_ros.trainer import Trainer
+from vpg_ros.logger import Logger
+import vpg_ros.utils
 from vpg_ros.srv import CoordAction,InfoCamera
 from vpg_ros.srv import ColorDepthImages
 
@@ -128,6 +128,7 @@ class Simulation:
         action_thread = threading.Thread(target=process_actions)
         action_thread.daemon = True
         action_thread.start()
+        print('fin init')
         exit_called = False
         # -------------------------------------------------------------
 

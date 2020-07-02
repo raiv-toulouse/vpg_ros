@@ -3,7 +3,7 @@ import numpy as np
 import cv2
 import torch
 from torch.autograd import Variable
-from models import  reinforcement_net
+from vpg_ros.models import  reinforcement_net
 from scipy import ndimage
 
 
