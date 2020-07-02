@@ -64,6 +64,7 @@ add_service_files(
    ColorDepthImages.srv
    TestService.srv
    AddObjects.srv
+   InfoCamera.srv
  )
 
 ## Generate actions in the 'action' folder

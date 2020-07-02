@@ -2,19 +2,14 @@
 
 import time
 import os
-import random
 import threading
 import argparse
-import matplotlib.pyplot as plt
 import numpy as np
-import scipy as sc
 import cv2
-from collections import namedtuple
-import torch  
-from torch.autograd import Variable
+import torch
 from robot import Robot
-from trainer import Trainer
-from logger import Logger
+from src.vpg_ros.trainer import Trainer
+from src.vpg_ros.logger import Logger
 import utils
 
 

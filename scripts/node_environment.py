@@ -14,7 +14,7 @@ if __name__ == "__main__":
         ipVREP = '127.0.0.1'
         myRobot = RobotVREP(workspace_limits,ipVREP)
         print("Ready RobotVREP")
-        myObjects = ObjetsVREP(workspace_limits, 'src/vpg_ros/objects/blocks', 10)  # Se mettre dans le répertoire catkin_ws
+        myObjects = ObjetsVREP(workspace_limits, '/home/phil/catkin_ws/src/vpg_ros/objects/blocks', 10)  # Se mettre dans le répertoire catkin_ws
         print("Ready ObjetsVREP")
         myCamera = CameraVREP()
         print("Ready CameraVREP")

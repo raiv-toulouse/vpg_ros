@@ -1,0 +1,4 @@
+<?xml version="1.0"?>
+<launch>
+  <node name="node_environment" pkg="vpg_ros" type="node_environment.py" output="screen"/>
+</launch>

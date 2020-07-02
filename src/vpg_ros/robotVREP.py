@@ -39,14 +39,15 @@ class RobotVREP(object):
         sim_ret, self.UR5_target_handle = vrep.simxGetObjectHandle(self.sim_client,'UR5_target',vrep.simx_opmode_blocking)
         sim_ret, self.cam_handle = vrep.simxGetObjectHandle(self.sim_client, 'Vision_sensor_persp', vrep.simx_opmode_blocking)
         vrep.simxSetObjectPosition(self.sim_client, self.UR5_target_handle, -1, (-0.5,0,0.3), vrep.simx_opmode_blocking)
-        vrep.simxStopSimulation(self.sim_client, vrep.simx_opmode_blocking)
-        vrep.simxStartSimulation(self.sim_client, vrep.simx_opmode_blocking)
-        time.sleep(1)
+        #vrep.simxStopSimulation(self.sim_client, vrep.simx_opmode_blocking)
+        #vrep.simxStartSimulation(self.sim_client, vrep.simx_opmode_blocking)
+        #time.sleep(1)
         sim_ret, self.RG2_tip_handle = vrep.simxGetObjectHandle(self.sim_client, 'UR5_tip', vrep.simx_opmode_blocking)
         sim_ret, gripper_position = vrep.simxGetObjectPosition(self.sim_client, self.RG2_tip_handle, -1, vrep.simx_opmode_blocking)
         while gripper_position[2] > 0.4: # V-REP bug requiring multiple starts and stops to restart
             vrep.simxStopSimulation(self.sim_client, vrep.simx_opmode_blocking)
             vrep.simxStartSimulation(self.sim_client, vrep.simx_opmode_blocking)
+            print('jkjklj')
             time.sleep(1)
             sim_ret, gripper_position = vrep.simxGetObjectPosition(self.sim_client, self.RG2_tip_handle, -1, vrep.simx_opmode_blocking)
 
@@ -144,7 +145,7 @@ class RobotVREP(object):
         # Check if grasp is successful
         gripper_full_closed = self.close_gripper()
         grasp_success = not gripper_full_closed
-        return CoordActionResponse()
+        return CoordActionResponse(grasp_success)
 
     def push(self, req):
         heightmap_rotation_angle = req.angle
@@ -190,7 +191,7 @@ class RobotVREP(object):
         self.move_to([target_x, target_y, position[2]], None)
         # Move gripper to location above grasp target
         self.move_to([target_x, target_y, location_above_pushing_point[2]], None)
-        return CoordActionResponse()
+        return CoordActionResponse(True)
 
 #
 # Programme principal

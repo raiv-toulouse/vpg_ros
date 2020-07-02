@@ -2,7 +2,7 @@
 # coding: utf-8
 
 import rospy
-from vpg_ros.srv import GripperCmd,GripperCmdResponse,CoordAction,CoordActionResponse
+from vpg_ros.srv import GripperCmd,CoordAction
 
 def cmd(ouvrir):
     rospy.wait_for_service('cmd_gripper')

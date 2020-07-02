@@ -4,7 +4,7 @@ import rospy
 import vrep
 import math
 import numpy as np
-from vpg_ros.srv import ColorDepthImages,ColorDepthImagesResponse
+from vpg_ros.srv import ColorDepthImages,ColorDepthImagesResponse,InfoCamera
 
 from PIL import Image
 
@@ -15,6 +15,7 @@ def showImage(img,type):
 class CameraVREP(object):
     def __init__(self):
         s = rospy.Service('get_color_depth_images', ColorDepthImages, self.get_data_for_service)
+        s = rospy.Service('get_camera_informations', InfoCamera, self.get_informations_for_service)
         ipVREP = '127.0.0.1'
         self.sim_client = vrep.simxStart(ipVREP, 20002, True, True, 5000, 5)  # Connect to V-REP on port 19997
         if self.sim_client == -1:
@@ -38,6 +39,13 @@ class CameraVREP(object):
         # Get background image
         self.bg_color_img, self.bg_depth_img = self.get_camera_data()
         self.bg_depth_img = self.bg_depth_img * self.cam_depth_scale
+
+
+    def get_informations_for_service(self,req):
+        intrinsics_1D = tuple(self.cam_intrinsics.reshape(1,-1)[0])
+        pose_1D = tuple(self.cam_pose)
+        return ColorDepthImagesResponse(self.cam_depth_scale,intrinsics_1D,pose_1D)
+
 
     def get_camera_data(self):
         # Get color image from simulation

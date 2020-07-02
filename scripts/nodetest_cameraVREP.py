@@ -2,7 +2,7 @@
 # coding: utf-8
 
 import rospy
-from vpg_ros.srv import ColorDepthImages,ColorDepthImagesResponse
+from vpg_ros.srv import ColorDepthImages
 import numpy as np
 from PIL import Image
 
