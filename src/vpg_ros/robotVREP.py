@@ -47,7 +47,6 @@ class RobotVREP(object):
         while gripper_position[2] > 0.4: # V-REP bug requiring multiple starts and stops to restart
             vrep.simxStopSimulation(self.sim_client, vrep.simx_opmode_blocking)
             vrep.simxStartSimulation(self.sim_client, vrep.simx_opmode_blocking)
-            print('jkjklj')
             time.sleep(1)
             sim_ret, gripper_position = vrep.simxGetObjectPosition(self.sim_client, self.RG2_tip_handle, -1, vrep.simx_opmode_blocking)
 

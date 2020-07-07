@@ -4,7 +4,7 @@ import rospy
 import vrep
 import math
 import numpy as np
-from vpg_ros.srv import ColorDepthImages,ColorDepthImagesResponse,InfoCamera
+from vpg_ros.srv import ColorDepthImages,ColorDepthImagesResponse,InfoCamera,InfoCameraResponse
 
 from PIL import Image
 
@@ -35,7 +35,7 @@ class CameraVREP(object):
         cam_rotm[0:3, 0:3] = np.linalg.inv(self.euler2rotm(cam_orientation))
         self.cam_pose = np.dot(cam_trans, cam_rotm)  # Compute rigid transformation representating camera pose
         self.cam_intrinsics = np.asarray([[618.62, 0, 320], [0, 618.62, 240], [0, 0, 1]])
-        self.cam_depth_scale = 1
+        self.cam_depth_scale = 1.0
         # Get background image
         self.bg_color_img, self.bg_depth_img = self.get_camera_data()
         self.bg_depth_img = self.bg_depth_img * self.cam_depth_scale
@@ -43,8 +43,8 @@ class CameraVREP(object):
 
     def get_informations_for_service(self,req):
         intrinsics_1D = tuple(self.cam_intrinsics.reshape(1,-1)[0])
-        pose_1D = tuple(self.cam_pose)
-        return ColorDepthImagesResponse(self.cam_depth_scale,intrinsics_1D,pose_1D)
+        pose_1D = tuple(self.cam_pose.reshape(1,-1)[0])
+        return InfoCameraResponse(self.cam_depth_scale,intrinsics_1D,pose_1D)
 
 
     def get_camera_data(self):

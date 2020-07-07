@@ -8,18 +8,13 @@ import torch
 
 class Logger():
 
-    def __init__(self, continue_logging, logging_directory):
+    def __init__(self, logging_directory):
 
         # Create directory to save data
         timestamp = time.time()
         timestamp_value = datetime.datetime.fromtimestamp(timestamp)
-        self.continue_logging = continue_logging
-        if self.continue_logging:
-            self.base_directory = logging_directory
-            print('Pre-loading data logging session: %s' % (self.base_directory))
-        else:
-            self.base_directory = os.path.join(logging_directory, timestamp_value.strftime('%Y-%m-%d.%H_%M_%S'))
-            print('Creating data logging session: %s' % (self.base_directory))
+        self.base_directory = os.path.join(logging_directory, timestamp_value.strftime('%Y-%m-%d.%H_%M_%S'))
+        print('Creating data logging session: %s' % (self.base_directory))
         self.info_directory = os.path.join(self.base_directory, 'info')
         self.color_images_directory = os.path.join(self.base_directory, 'data', 'color-images')
         self.depth_images_directory = os.path.join(self.base_directory, 'data', 'depth-images')
