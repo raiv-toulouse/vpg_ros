@@ -217,7 +217,7 @@ class Simulation:
                     sample_iteration = sorted_sample_ind[rand_sample_ind]
                     print('Experience replay: iteration %d (surprise value: %f)' % (sample_iteration, sample_surprise_values[sorted_surprise_ind[rand_sample_ind]]))
                     # Load sample RGB-D heightmap
-                    self.sample_color_heightmap = cv2.imread(os.path.join(self.logger.self.color_heightmaps_directory, '%06d.0.color.png' % (sample_iteration)))
+                    self.sample_color_heightmap = cv2.imread(os.path.join(self.logger.color_heightmaps_directory, '%06d.0.color.png' % (sample_iteration)))
                     self.sample_color_heightmap = cv2.cvtColor(self.sample_color_heightmap, cv2.COLOR_BGR2RGB)
                     sample_depth_heightmap = cv2.imread(os.path.join(self.logger.depth_heightmaps_directory, '%06d.0.depth.png' % (sample_iteration)), -1)
                     sample_depth_heightmap = sample_depth_heightmap.astype(np.float32)/100000
