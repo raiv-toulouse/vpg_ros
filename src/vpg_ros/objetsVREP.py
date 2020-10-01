@@ -10,6 +10,7 @@ from vpg_ros.srv import AddObjects,AddObjectsResponse
 class ObjetsVREP(object):
     def __init__(self,workspace_limits, obj_mesh_dir, num_obj):
         s = rospy.Service('add_objects', AddObjects, self.add_objects)
+        s = rospy.Service('add_one_cube', AddObjects, self.add_one_cube)
         ipVREP = '127.0.0.1'
         self.sim_client = vrep.simxStart(ipVREP, 20001, True, True, 5000, 5)  # Connect to V-REP on port 19997
         if self.sim_client == -1:
@@ -40,7 +41,6 @@ class ObjetsVREP(object):
 
     def add_objects(self,req):
         # Add each object to robot workspace at x,y location and orientation (random or pre-loaded)
-        self.object_handles = []
         for object_idx in range(len(self.obj_mesh_ind)):
             curr_mesh_file = os.path.join(self.obj_mesh_dir, self.mesh_list[self.obj_mesh_ind[object_idx]])
             curr_mesh_file = os.path.abspath(curr_mesh_file)
@@ -54,9 +54,23 @@ class ObjetsVREP(object):
             if ret_resp == 8:
                 print('Failed to add new objects to simulation. Please restart.')
                 exit()
-            curr_shape_handle = ret_ints[0]
-            self.object_handles.append(curr_shape_handle)
             time.sleep(2)
-        self.prev_obj_positions = []
-        self.obj_positions = []
+        return AddObjectsResponse()
+
+    def add_one_cube(self,req):
+        """
+        Add only one cube in the middle of the wrokspace for debug purpose.
+        BE CAREFULL : you'll have to change the objects directory
+        :param req:
+        :return:
+        """
+        # Add only one cube in the (-0.5, 0, 0.01) coordinate
+        curr_mesh_file = '/home/phil/catkin_ws/src/vpg_ros/objects/newblocks/cube.obj'  # a cube
+        curr_mesh_file = os.path.abspath(curr_mesh_file)
+        curr_shape_name = 'shape_00'
+        object_position = [-0.5, 0, 0.01] # in the middle of the workspace
+        object_orientation = [0, 0, 0]
+        object_color = [255, 0, 0]  # red
+        ret_resp,ret_ints,ret_floats,ret_strings,ret_buffer = vrep.simxCallScriptFunction(self.sim_client, 'remoteApiCommandServer',vrep.sim_scripttype_childscript,'importShape',[0,0,255,0], object_position + object_orientation + object_color, [curr_mesh_file, curr_shape_name], bytearray(), vrep.simx_opmode_blocking)
+        time.sleep(2)
         return AddObjectsResponse()
