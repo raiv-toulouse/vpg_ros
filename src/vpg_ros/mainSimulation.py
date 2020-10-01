@@ -286,6 +286,7 @@ class Simulation:
         try:
             cmdGrasp = rospy.ServiceProxy('robot_grasp', CoordAction)
             resp = cmdGrasp(position,angle)
+            print('===============> robot_grasp : {},{} => {}'.format(position,angle,resp))
             return resp.success
         except rospy.ServiceException as e:
             print("Service robot_grasp call failed: %s"%e)
@@ -298,7 +299,7 @@ class Simulation:
             width = resp.width
             height = resp.height
             colorImage = np.asarray(resp.colorImage, dtype=np.uint8).reshape(width, height, 3)
-            depthImage = np.asarray(resp.depthImage, dtype=np.uint8).reshape(width, height)
+            depthImage = np.asarray(resp.depthImage, dtype=np.float32).reshape(width, height)
             return colorImage, depthImage
         except rospy.ServiceException as e:
             print("Service call failed: %s" % e)
