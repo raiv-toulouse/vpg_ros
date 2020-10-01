@@ -2,7 +2,7 @@
 
 import time
 import numpy as np
-import vrep
+import vpg_ros.vrep as vrep
 from vpg_ros.srv import GripperCmd,GripperCmdResponse,CoordAction,CoordActionResponse
 import rospy
 
@@ -53,27 +53,31 @@ class RobotVREP(object):
     def cmdGripper(self,req):
         if req.open:
             print("open")
-            self.open_gripper()
+            response = self.open_gripper()
         else:
             print("close")
-            self.close_gripper()
-        return GripperCmdResponse()
+            response = self.close_gripper()
+        return GripperCmdResponse(response)
 
     def close_gripper(self, async=False):
+        """
+        Close the gripper and return True if the gripper is fully closed (so, no object is holded)
+        :param async:
+        :return: True if gripper is fully closed
+        """
         gripper_motor_velocity = -0.5
         gripper_motor_force = 100
         sim_ret, RG2_gripper_handle = vrep.simxGetObjectHandle(self.sim_client, 'RG2_openCloseJoint', vrep.simx_opmode_blocking)
         sim_ret, gripper_joint_position = vrep.simxGetJointPosition(self.sim_client, RG2_gripper_handle, vrep.simx_opmode_blocking)
         vrep.simxSetJointForce(self.sim_client, RG2_gripper_handle, gripper_motor_force, vrep.simx_opmode_blocking)
         vrep.simxSetJointTargetVelocity(self.sim_client, RG2_gripper_handle, gripper_motor_velocity, vrep.simx_opmode_blocking)
-        gripper_fully_closed = False
         while gripper_joint_position > -0.047: # Block until gripper is fully closed
             sim_ret, new_gripper_joint_position = vrep.simxGetJointPosition(self.sim_client, RG2_gripper_handle, vrep.simx_opmode_blocking)
             # print(gripper_joint_position)
             if new_gripper_joint_position >= gripper_joint_position:
-                return gripper_fully_closed
+                return False
             gripper_joint_position = new_gripper_joint_position
-        gripper_fully_closed = True
+        return True
 
 
     def open_gripper(self, async=False):
@@ -150,6 +154,7 @@ class RobotVREP(object):
             print("--------------> pb dans GRASP")
             print(move_direction[0])
             print(move_step[0])
+            return CoordActionResponse(False)
 
     def push(self, req):
         try:
@@ -201,7 +206,7 @@ class RobotVREP(object):
             print("--------------> pb dans PUSH")
             print(move_direction[0])
             print(move_step[0])
-
+            return CoordActionResponse(False)
 #
 # Programme principal
 #

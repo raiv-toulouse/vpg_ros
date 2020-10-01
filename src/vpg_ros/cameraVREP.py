@@ -1,7 +1,7 @@
 # coding: utf-8
 
 import rospy
-import vrep
+import vpg_ros.vrep as vrep
 import math
 import numpy as np
 from vpg_ros.srv import ColorDepthImages,ColorDepthImagesResponse,InfoCamera,InfoCameraResponse
