@@ -53,11 +53,11 @@ class RobotVREP(object):
     def cmdGripper(self,req):
         if req.open:
             print("open")
-            response = self.open_gripper()
+            self.open_gripper()
         else:
             print("close")
-            response = self.close_gripper()
-        return GripperCmdResponse(response)
+            self.close_gripper()
+        return GripperCmdResponse()
 
     def close_gripper(self, async=False):
         """
@@ -71,9 +71,8 @@ class RobotVREP(object):
         sim_ret, gripper_joint_position = vrep.simxGetJointPosition(self.sim_client, RG2_gripper_handle, vrep.simx_opmode_blocking)
         vrep.simxSetJointForce(self.sim_client, RG2_gripper_handle, gripper_motor_force, vrep.simx_opmode_blocking)
         vrep.simxSetJointTargetVelocity(self.sim_client, RG2_gripper_handle, gripper_motor_velocity, vrep.simx_opmode_blocking)
-        while gripper_joint_position > -0.047: # Block until gripper is fully closed
+        while gripper_joint_position > -0.044: # Block until gripper is fully closed
             sim_ret, new_gripper_joint_position = vrep.simxGetJointPosition(self.sim_client, RG2_gripper_handle, vrep.simx_opmode_blocking)
-            # print(gripper_joint_position)
             if new_gripper_joint_position >= gripper_joint_position:
                 return False
             gripper_joint_position = new_gripper_joint_position
@@ -143,7 +142,7 @@ class RobotVREP(object):
             # Approach grasp target
             self.move_to(position, None)
             # Close gripper to grasp target
-            gripper_full_closed = self.close_gripper()
+            self.close_gripper()
             # Move gripper to location above grasp target
             self.move_to(location_above_grasp_target, None)
             # Check if grasp is successful
