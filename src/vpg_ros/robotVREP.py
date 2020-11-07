@@ -5,6 +5,7 @@ import numpy as np
 import vpg_ros.vrep as vrep
 from vpg_ros.srv import GripperCmd,GripperCmdResponse,CoordAction,CoordActionResponse
 import rospy
+from std_srvs.srv import Empty
 
 
 class RobotVREP(object):
@@ -61,23 +62,29 @@ class RobotVREP(object):
 
     def close_gripper(self, async=False):
         """
-        Close the gripper and return True if the gripper is fully closed (so, no object is holded)
+        Close the gripper
         :param async:
-        :return: True if gripper is fully closed
+        :return:
         """
         gripper_motor_velocity = -0.5
         gripper_motor_force = 100
         sim_ret, RG2_gripper_handle = vrep.simxGetObjectHandle(self.sim_client, 'RG2_openCloseJoint', vrep.simx_opmode_blocking)
-        sim_ret, gripper_joint_position = vrep.simxGetJointPosition(self.sim_client, RG2_gripper_handle, vrep.simx_opmode_blocking)
         vrep.simxSetJointForce(self.sim_client, RG2_gripper_handle, gripper_motor_force, vrep.simx_opmode_blocking)
         vrep.simxSetJointTargetVelocity(self.sim_client, RG2_gripper_handle, gripper_motor_velocity, vrep.simx_opmode_blocking)
+
+    def gripper_fully_closed(self):
+        """
+        Test if the gripper is closed
+        :return: True if the gripper is fully closed (so, no object is holded)
+        """
+        sim_ret, RG2_gripper_handle = vrep.simxGetObjectHandle(self.sim_client, 'RG2_openCloseJoint', vrep.simx_opmode_blocking)
+        sim_ret, gripper_joint_position = vrep.simxGetJointPosition(self.sim_client, RG2_gripper_handle,vrep.simx_opmode_blocking)
         while gripper_joint_position > -0.044: # Block until gripper is fully closed
             sim_ret, new_gripper_joint_position = vrep.simxGetJointPosition(self.sim_client, RG2_gripper_handle, vrep.simx_opmode_blocking)
             if new_gripper_joint_position >= gripper_joint_position:
                 return False
             gripper_joint_position = new_gripper_joint_position
         return True
-
 
     def open_gripper(self, async=False):
         gripper_motor_velocity = 0.5
@@ -92,12 +99,10 @@ class RobotVREP(object):
     def move_to(self, tool_position, tool_orientation):
         # sim_ret, UR5_target_handle = vrep.simxGetObjectHandle(self.sim_client,'UR5_target',vrep.simx_opmode_blocking)
         sim_ret, UR5_target_position = vrep.simxGetObjectPosition(self.sim_client, self.UR5_target_handle,-1,vrep.simx_opmode_blocking)
-
         move_direction = np.asarray([tool_position[0] - UR5_target_position[0], tool_position[1] - UR5_target_position[1], tool_position[2] - UR5_target_position[2]])
         move_magnitude = np.linalg.norm(move_direction)
         move_step = 0.02*move_direction/move_magnitude
         num_move_steps = int(np.floor(move_magnitude/0.02))
-
         for step_iter in range(num_move_steps):
             vrep.simxSetObjectPosition(self.sim_client,self.UR5_target_handle,-1,(UR5_target_position[0] + move_step[0], UR5_target_position[1] + move_step[1], UR5_target_position[2] + move_step[2]),vrep.simx_opmode_blocking)
             sim_ret, UR5_target_position = vrep.simxGetObjectPosition(self.sim_client,self.UR5_target_handle,-1,vrep.simx_opmode_blocking)
@@ -146,10 +151,19 @@ class RobotVREP(object):
             # Move gripper to location above grasp target
             self.move_to(location_above_grasp_target, None)
             # Check if grasp is successful
-            gripper_full_closed = self.close_gripper()
+            gripper_full_closed = self.gripper_fully_closed()
             grasp_success = not gripper_full_closed
+            # Move the grasped object elsewhere
+            if grasp_success:
+                rospy.wait_for_service('robot_push')
+                try:
+                    cmdMove = rospy.ServiceProxy('move_object', Empty)
+                    resp = cmdMove()
+                except rospy.ServiceException as e:
+                    print("Service move_object call failed: %s"%e)
             return CoordActionResponse(grasp_success)
-        except:  # Pour traquer une erreur "cannot convert float Nan to integer"
+        except Exception as ex:  # Pour traquer une erreur "cannot convert float Nan to integer"
+            print(ex)
             print("--------------> pb dans GRASP")
             print(move_direction[0])
             print(move_step[0])

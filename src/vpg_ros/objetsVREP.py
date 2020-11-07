@@ -5,12 +5,14 @@ import vpg_ros.vrep as vrep
 import os,time
 import numpy as np
 from vpg_ros.srv import AddObjects,AddObjectsResponse
+from std_srvs.srv import Empty
 
 
 class ObjetsVREP(object):
     def __init__(self,workspace_limits, obj_mesh_dir, num_obj):
         s = rospy.Service('add_objects', AddObjects, self.add_objects)
         s = rospy.Service('add_one_cube', AddObjects, self.add_one_cube)
+        s = rospy.Service('move_object', Empty, self.move_object)
         ipVREP = '127.0.0.1'
         self.sim_client = vrep.simxStart(ipVREP, 20001, True, True, 5000, 5)  # Connect to V-REP on port 19997
         if self.sim_client == -1:
@@ -38,9 +40,33 @@ class ObjetsVREP(object):
         self.obj_mesh_ind = np.random.randint(0, len(self.mesh_list), size=self.num_obj)
         self.obj_mesh_color = self.color_space[np.asarray(range(self.num_obj)) % 10, :]
 
+    def get_obj_positions(self):
+        """
+        Retrive the list of all the objects in the workspace
+        :return:
+        """
+        obj_positions = []
+        for object_handle in self.object_handles:
+            sim_ret, object_position = vrep.simxGetObjectPosition(self.sim_client, object_handle, -1, vrep.simx_opmode_blocking)
+            obj_positions.append(object_position)
+        return obj_positions
+
+    def move_object(self,req):
+        """
+        Used to remove an object from the gripper and put it outside the workspace.
+        The one which is removed is the one with the highest elevation.
+        :return:
+        """
+        object_positions = np.asarray(self.get_obj_positions())
+        object_positions = object_positions[:, 2]
+        grasped_object_ind = np.argmax(object_positions)
+        grasped_object_handle = self.object_handles[grasped_object_ind]
+        vrep.simxSetObjectPosition(self.sim_client, grasped_object_handle, -1,
+                                   (-0.5, 0.5 + 0.05 * float(grasped_object_ind), 0.1), vrep.simx_opmode_blocking)
 
     def add_objects(self,req):
         # Add each object to robot workspace at x,y location and orientation (random or pre-loaded)
+        self.object_handles = []
         for object_idx in range(len(self.obj_mesh_ind)):
             curr_mesh_file = os.path.join(self.obj_mesh_dir, self.mesh_list[self.obj_mesh_ind[object_idx]])
             curr_mesh_file = os.path.abspath(curr_mesh_file)
@@ -54,6 +80,8 @@ class ObjetsVREP(object):
             if ret_resp == 8:
                 print('Failed to add new objects to simulation. Please restart.')
                 exit()
+            curr_shape_handle = ret_ints[0]
+            self.object_handles.append(curr_shape_handle)
             time.sleep(2)
         return AddObjectsResponse()
 
@@ -72,5 +100,7 @@ class ObjetsVREP(object):
         object_orientation = [0, 0, 0]
         object_color = [255, 0, 0]  # red
         ret_resp,ret_ints,ret_floats,ret_strings,ret_buffer = vrep.simxCallScriptFunction(self.sim_client, 'remoteApiCommandServer',vrep.sim_scripttype_childscript,'importShape',[0,0,255,0], object_position + object_orientation + object_color, [curr_mesh_file, curr_shape_name], bytearray(), vrep.simx_opmode_blocking)
+        curr_shape_handle = ret_ints[0]
+        self.object_handles = [curr_shape_handle]
         time.sleep(2)
         return AddObjectsResponse()
