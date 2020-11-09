@@ -1,4 +1,5 @@
 <?xml version="1.0"?>
 <launch>
+  <param name="objects_dir" value="$(find vpg_ros)/objects"/>
   <node name="node_environment" pkg="vpg_ros" type="node_environment.py" output="screen"/>
 </launch>

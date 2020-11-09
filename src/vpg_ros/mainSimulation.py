@@ -10,22 +10,23 @@ import rospy
 from vpg_ros.trainer import Trainer
 from vpg_ros.logger import Logger
 from vpg_ros.utils import *
-from vpg_ros.srv import CoordAction,InfoCamera
+from vpg_ros.srv import CoordAction, InfoCamera
 from vpg_ros.srv import ColorDepthImages
 from vpg_ros.srv import AddObjects
 
+
 class Simulation:
-    def __init__(self,args):
+    def __init__(self, args):
         print('coucou')
         # --------------- Setup options ---------------
-        self.workspace_limits = np.asarray([[-0.724, -0.276], [-0.224, 0.224], [-0.0001, 0.4]]) # Cols: min max, Rows: x y z (define workspace limits in robot coordinates)
-        self.heightmap_resolution = args.heightmap_resolution # Meters per pixel of heightmap
+        self.workspace_limits = np.asarray([[-0.724, -0.276], [-0.224, 0.224], [-0.0001, 0.4]])  # Cols: min max, Rows: x y z (define workspace limits in robot coordinates)
+        self.heightmap_resolution = args.heightmap_resolution  # Meters per pixel of heightmap
         # ------------- Algorithm options -------------
         future_reward_discount = args.future_reward_discount
         explore_rate_decay = args.explore_rate_decay
         # ------ Pre-loading and logging options ------
         logging_directory = os.path.abspath('logs')
-        save_visualizations = args.save_visualizations # Save visualizations of FCN predictions? Takes 0.6s per training step if set to True
+        save_visualizations = args.save_visualizations  # Save visualizations of FCN predictions? Takes 0.6s per training step if set to True
         # Set random seed
         np.random.seed(1234)
         # Setup virtual camera in simulation
@@ -36,17 +37,18 @@ class Simulation:
         self.trainer = Trainer(future_reward_discount)
         # Initialize data logger
         self.logger = Logger(logging_directory)
-        #logger.save_camera_info(robot.cam_intrinsics, robot.cam_pose, robot.cam_depth_scale) # Save camera intrinsics and pose
-        self.logger.save_heightmap_info(self.workspace_limits, self.heightmap_resolution) # Save heightmap parameters
+        # logger.save_camera_info(robot.cam_intrinsics, robot.cam_pose, robot.cam_depth_scale) # Save camera intrinsics and pose
+        self.logger.save_heightmap_info(self.workspace_limits, self.heightmap_resolution)  # Save heightmap parameters
         # Initialize variables for heuristic bootstrapping and exploration probability
         self.no_change_count = [2, 2]
         explore_prob = 0.5
         # Quick hack for nonlocal memory between threads in Python 2
-        self.nonlocal_variables = {'executing_action' : False,
-                              'primitive_action' : None,
-                              'best_pix_ind' : None,
-                              'push_success' : False,
-                              'grasp_success' : False}
+        self.nonlocal_variables = {'executing_action': False,
+                                   'primitive_action': None,
+                                   'best_pix_ind': None,
+                                   'push_success': False,
+                                   'grasp_success': False}
+
         # Parallel thread to process network output and execute actions
         # -------------------------------------------------------------
         def process_actions():
@@ -61,9 +63,9 @@ class Simulation:
                     if best_push_conf > best_grasp_conf:
                         self.nonlocal_variables['primitive_action'] = 'push'
                     explore_actions = np.random.uniform() < explore_prob
-                    if explore_actions: # Exploitation (do best action) vs exploration (do other action)
+                    if explore_actions:  # Exploitation (do best action) vs exploration (do other action)
                         print('Strategy: explore (exploration probability: %f)' % (explore_prob))
-                        self.nonlocal_variables['primitive_action'] = 'push' if np.random.randint(0,2) == 0 else 'grasp'
+                        self.nonlocal_variables['primitive_action'] = 'push' if np.random.randint(0, 2) == 0 else 'grasp'
                     else:
                         print('Strategy: exploit (exploration probability: %f)' % (explore_prob))
                     self.trainer.is_exploit_log.append([0 if explore_actions else 1])
@@ -85,16 +87,22 @@ class Simulation:
                     self.trainer.predicted_value_log.append([predicted_value])
                     self.logger.write_to_log('predicted-value', self.trainer.predicted_value_log)
                     # Compute 3D position of pixel
-                    print('Action: %s at (%d, %d, %d)' % (self.nonlocal_variables['primitive_action'], self.nonlocal_variables['best_pix_ind'][0], self.nonlocal_variables['best_pix_ind'][1], self.nonlocal_variables['best_pix_ind'][2]))
-                    best_rotation_angle = np.deg2rad(self.nonlocal_variables['best_pix_ind'][0]*(360.0/self.trainer.model.num_rotations))
+                    print('Action: %s at (%d, %d, %d)' % (
+                    self.nonlocal_variables['primitive_action'], self.nonlocal_variables['best_pix_ind'][0], self.nonlocal_variables['best_pix_ind'][1],
+                    self.nonlocal_variables['best_pix_ind'][2]))
+                    best_rotation_angle = np.deg2rad(self.nonlocal_variables['best_pix_ind'][0] * (360.0 / self.trainer.model.num_rotations))
                     best_pix_x = self.nonlocal_variables['best_pix_ind'][2]
                     best_pix_y = self.nonlocal_variables['best_pix_ind'][1]
-                    primitive_position = [best_pix_x * self.heightmap_resolution + self.workspace_limits[0][0], best_pix_y * self.heightmap_resolution + self.workspace_limits[1][0], self.valid_depth_heightmap[best_pix_y][best_pix_x] + self.workspace_limits[2][0]]
+                    primitive_position = [best_pix_x * self.heightmap_resolution + self.workspace_limits[0][0],
+                                          best_pix_y * self.heightmap_resolution + self.workspace_limits[1][0],
+                                          self.valid_depth_heightmap[best_pix_y][best_pix_x] + self.workspace_limits[2][0]]
                     # If pushing, adjust start position, and make sure z value is safe and not too low
-                    if self.nonlocal_variables['primitive_action'] == 'push': # or self.nonlocal_variables['primitive_action'] == 'place':
+                    if self.nonlocal_variables['primitive_action'] == 'push':  # or self.nonlocal_variables['primitive_action'] == 'place':
                         finger_width = 0.02
-                        safe_kernel_width = int(np.round((finger_width/2)/self.heightmap_resolution))
-                        local_region = self.valid_depth_heightmap[max(best_pix_y - safe_kernel_width, 0):min(best_pix_y + safe_kernel_width + 1, self.valid_depth_heightmap.shape[0]), max(best_pix_x - safe_kernel_width, 0):min(best_pix_x + safe_kernel_width + 1, self.valid_depth_heightmap.shape[1])]
+                        safe_kernel_width = int(np.round((finger_width / 2) / self.heightmap_resolution))
+                        local_region = self.valid_depth_heightmap[
+                                       max(best_pix_y - safe_kernel_width, 0):min(best_pix_y + safe_kernel_width + 1, self.valid_depth_heightmap.shape[0]),
+                                       max(best_pix_x - safe_kernel_width, 0):min(best_pix_x + safe_kernel_width + 1, self.valid_depth_heightmap.shape[1])]
                         if local_region.size == 0:
                             safe_z_position = self.workspace_limits[2][0]
                         else:
@@ -102,9 +110,11 @@ class Simulation:
                         primitive_position[2] = safe_z_position
                     # Save executed primitive
                     if self.nonlocal_variables['primitive_action'] == 'push':
-                        self.trainer.executed_action_log.append([0, self.nonlocal_variables['best_pix_ind'][0], self.nonlocal_variables['best_pix_ind'][1], self.nonlocal_variables['best_pix_ind'][2]]) # 0 - push
+                        self.trainer.executed_action_log.append(
+                            [0, self.nonlocal_variables['best_pix_ind'][0], self.nonlocal_variables['best_pix_ind'][1], self.nonlocal_variables['best_pix_ind'][2]])  # 0 - push
                     elif self.nonlocal_variables['primitive_action'] == 'grasp':
-                        self.trainer.executed_action_log.append([1, self.nonlocal_variables['best_pix_ind'][0], self.nonlocal_variables['best_pix_ind'][1], self.nonlocal_variables['best_pix_ind'][2]]) # 1 - grasp
+                        self.trainer.executed_action_log.append(
+                            [1, self.nonlocal_variables['best_pix_ind'][0], self.nonlocal_variables['best_pix_ind'][1], self.nonlocal_variables['best_pix_ind'][2]])  # 1 - grasp
                     self.logger.write_to_log('executed-action', self.trainer.executed_action_log)
                     # Visualize executed primitive, and affordances
                     if save_visualizations:
@@ -127,12 +137,12 @@ class Simulation:
                         print('Grasp successful: %r' % (self.nonlocal_variables['grasp_success']))
                     self.nonlocal_variables['executing_action'] = False
                 time.sleep(0.01)
+
         action_thread = threading.Thread(target=process_actions)
         action_thread.daemon = True
         action_thread.start()
         self.exit_called = False
         # -------------------------------------------------------------
-
 
     def execute(self):
         # -------------------------------------------------------------
@@ -141,10 +151,10 @@ class Simulation:
             print('\n%s iteration: %d' % ('Training', self.trainer.iteration))
             iteration_time_0 = time.time()
             # Make sure simulation is still stable (if not, reset simulation)
-            #robot.check_sim()
+            # robot.check_sim()
             # Get latest RGB-D image
             color_img, depth_img = self.get_camera_data()
-            depth_img = depth_img * self.cam_depth_scale # Apply depth scale from calibration
+            depth_img = depth_img * self.cam_depth_scale  # Apply depth scale from calibration
             # cv2.imshow('photo',depth_img)
             # if cv2.waitKey(0)==27:
             #     continue
@@ -187,7 +197,8 @@ class Simulation:
                     elif prev_primitive_action == 'grasp':
                         self.no_change_count[1] += 1
                 # Compute training labels
-                label_value, prev_reward_value = self.trainer.get_label_value(prev_primitive_action, prev_push_success, prev_grasp_success, change_detected, prev_push_predictions, prev_grasp_predictions, self.color_heightmap, self.valid_depth_heightmap)
+                label_value, prev_reward_value = self.trainer.get_label_value(prev_primitive_action, prev_push_success, prev_grasp_success, change_detected, prev_push_predictions,
+                                                                              prev_grasp_predictions, self.color_heightmap, self.valid_depth_heightmap)
                 self.trainer.label_value_log.append([label_value])
                 self.logger.write_to_log('label-value', self.trainer.label_value_log)
                 self.trainer.reward_value_log.append([prev_reward_value])
@@ -195,7 +206,7 @@ class Simulation:
                 # Backpropagate
                 self.trainer.backprop(self.prev_color_heightmap, self.prev_valid_depth_heightmap, prev_primitive_action, prev_best_pix_ind, label_value)
                 # Adjust exploration probability
-                explore_prob = max(0.5 * np.power(0.9998, self.trainer.iteration),0.1)
+                explore_prob = max(0.5 * np.power(0.9998, self.trainer.iteration), 0.1)
                 # Do sampling for experience replay
 
                 sample_primitive_action = prev_primitive_action
@@ -206,25 +217,27 @@ class Simulation:
                     sample_primitive_action_id = 1
                     sample_reward_value = 0 if prev_reward_value == 1 else 1
                 # Get samples of the same primitive but with different results
-                sample_ind = np.argwhere(np.logical_and(np.asarray(self.trainer.reward_value_log)[1:self.trainer.iteration,0] == sample_reward_value, np.asarray(self.trainer.executed_action_log)[1:self.trainer.iteration,0] == sample_primitive_action_id))
+                sample_ind = np.argwhere(np.logical_and(np.asarray(self.trainer.reward_value_log)[1:self.trainer.iteration, 0] == sample_reward_value,
+                                                        np.asarray(self.trainer.executed_action_log)[1:self.trainer.iteration, 0] == sample_primitive_action_id))
                 if sample_ind.size > 0:
                     # Find sample with highest surprise value
-                    sample_surprise_values = np.abs(np.asarray(self.trainer.predicted_value_log)[sample_ind[:,0]] - np.asarray(self.trainer.label_value_log)[sample_ind[:,0]])
-                    sorted_surprise_ind = np.argsort(sample_surprise_values[:,0])
-                    sorted_sample_ind = sample_ind[sorted_surprise_ind,0]
+                    sample_surprise_values = np.abs(np.asarray(self.trainer.predicted_value_log)[sample_ind[:, 0]] - np.asarray(self.trainer.label_value_log)[sample_ind[:, 0]])
+                    sorted_surprise_ind = np.argsort(sample_surprise_values[:, 0])
+                    sorted_sample_ind = sample_ind[sorted_surprise_ind, 0]
                     pow_law_exp = 2
-                    rand_sample_ind = int(np.round(np.random.power(pow_law_exp, 1)*(sample_ind.size-1)))
+                    rand_sample_ind = int(np.round(np.random.power(pow_law_exp, 1) * (sample_ind.size - 1)))
                     sample_iteration = sorted_sample_ind[rand_sample_ind]
                     print('Experience replay: iteration %d (surprise value: %f)' % (sample_iteration, sample_surprise_values[sorted_surprise_ind[rand_sample_ind]]))
                     # Load sample RGB-D heightmap
                     self.sample_color_heightmap = cv2.imread(os.path.join(self.logger.color_heightmaps_directory, '%06d.0.color.png' % (sample_iteration)))
                     self.sample_color_heightmap = cv2.cvtColor(self.sample_color_heightmap, cv2.COLOR_BGR2RGB)
                     sample_depth_heightmap = cv2.imread(os.path.join(self.logger.depth_heightmaps_directory, '%06d.0.depth.png' % (sample_iteration)), -1)
-                    sample_depth_heightmap = sample_depth_heightmap.astype(np.float32)/100000
+                    sample_depth_heightmap = sample_depth_heightmap.astype(np.float32) / 100000
                     # Compute forward pass with sample
-                    sample_push_predictions, sample_grasp_predictions, sample_state_feat = self.trainer.forward(self.sample_color_heightmap, sample_depth_heightmap, is_volatile=True)
+                    sample_push_predictions, sample_grasp_predictions, sample_state_feat = self.trainer.forward(self.sample_color_heightmap, sample_depth_heightmap,
+                                                                                                                is_volatile=True)
                     # Get labels for sample and backpropagate
-                    sample_best_pix_ind = (np.asarray(self.trainer.executed_action_log)[sample_iteration,1:4]).astype(int)
+                    sample_best_pix_ind = (np.asarray(self.trainer.executed_action_log)[sample_iteration, 1:4]).astype(int)
                     self.trainer.backprop(self.sample_color_heightmap, sample_depth_heightmap, sample_primitive_action, sample_best_pix_ind, sample_reward_value)
                     # Recompute prediction value
                     if sample_primitive_action == 'push':
@@ -258,9 +271,11 @@ class Simulation:
             prev_best_pix_ind = self.nonlocal_variables['best_pix_ind']
             self.trainer.iteration += 1
             iteration_time_1 = time.time()
-            print('Time elapsed: %f' % (iteration_time_1-iteration_time_0))
+            print('Time elapsed: %f' % (iteration_time_1 - iteration_time_0))
 
-    def push(self,position,angle):
+    # Méthodes faisant le lien avec les autres obejts en appelant leurs services
+
+    def push(self, position, angle):
         '''
         Appel au service robot_push du node robot
         :param position:
@@ -270,12 +285,12 @@ class Simulation:
         rospy.wait_for_service('robot_push')
         try:
             cmdPush = rospy.ServiceProxy('robot_push', CoordAction)
-            resp = cmdPush(position,angle)
+            resp = cmdPush(position, angle)
             return resp.success
         except rospy.ServiceException as e:
-            print("Service robot_push call failed: %s"%e)
+            print("Service robot_push call failed: %s" % e)
 
-    def grasp(self,position,angle):
+    def grasp(self, position, angle):
         '''
         Appel au service robot_grasp du node robot
         :param position:
@@ -285,11 +300,11 @@ class Simulation:
         rospy.wait_for_service('robot_grasp')
         try:
             cmdGrasp = rospy.ServiceProxy('robot_grasp', CoordAction)
-            resp = cmdGrasp(position,angle)
-            print('===============> robot_grasp : {},{} => {}'.format(position,angle,resp))
+            resp = cmdGrasp(position, angle)
+            print('===============> robot_grasp : {},{} => {}'.format(position, angle, resp))
             return resp.success
         except rospy.ServiceException as e:
-            print("Service robot_grasp call failed: %s"%e)
+            print("Service robot_grasp call failed: %s" % e)
 
     def get_camera_data(self):
         rospy.wait_for_service('get_color_depth_images')
@@ -298,9 +313,9 @@ class Simulation:
             resp = getImages()
             width = resp.width
             height = resp.height
-            colorImage = np.asarray(resp.colorImage, dtype=np.uint8).reshape(width, height, 3)
-            depthImage = np.asarray(resp.depthImage, dtype=np.float32).reshape(width, height)
-            return colorImage, depthImage
+            color_image = np.asarray(resp.colorImage, dtype=np.uint8).reshape(width, height, 3)
+            depth_image = np.asarray(resp.depthImage, dtype=np.float32).reshape(width, height)
+            return color_image, depth_image
         except rospy.ServiceException as e:
             print("Service call failed: %s" % e)
 

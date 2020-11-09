@@ -65,6 +65,7 @@ add_service_files(
    TestService.srv
    AddObjects.srv
    InfoCamera.srv
+   AddOneObject.srv
  )
 
 ## Generate actions in the 'action' folder
