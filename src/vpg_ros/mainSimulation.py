@@ -167,7 +167,7 @@ class Simulation:
             self.logger.save_heightmaps(self.trainer.iteration, self.color_heightmap, self.valid_depth_heightmap, '0')
             # Reset simulation or pause real-world training if table is empty
             stuff_count = np.zeros(self.valid_depth_heightmap.shape)
-            stuff_count[self.valid_depth_heightmap > 0.01] = 1
+            stuff_count[self.valid_depth_heightmap > 0.02] = 1
             empty_threshold = 300
             if not self.exit_called:
                 # Run forward pass with network to get affordances
@@ -314,7 +314,7 @@ class Simulation:
             width = resp.width
             height = resp.height
             color_image = np.asarray(resp.colorImage, dtype=np.uint8).reshape(width, height, 3)
-            depth_image = np.asarray(resp.depthImage, dtype=np.float32).reshape(width, height)
+            depth_image = np.asarray(resp.depthImage, dtype=np.float64).reshape(width, height)
             return color_image, depth_image
         except rospy.ServiceException as e:
             print("Service call failed: %s" % e)
@@ -325,7 +325,7 @@ class Simulation:
             getInfos = rospy.ServiceProxy('get_camera_informations', InfoCamera)
             resp = getInfos()
             self.cam_depth_scale = resp.depth_scale
-            self.cam_intrinsics = np.asarray(resp.intrinsics, dtype=np.uint8).reshape(3, 3)
+            self.cam_intrinsics = np.asarray(resp.intrinsics, dtype=np.float32).reshape(3, 3)
             self.cam_pose = np.asarray(resp.pose, dtype=np.float32).reshape(4, 4)
         except rospy.ServiceException as e:
             print("Service call failed: %s" % e)
@@ -334,6 +334,6 @@ class Simulation:
         rospy.wait_for_service('add_objects')
         try:
             addObjects = rospy.ServiceProxy('add_objects', AddObjects)
-            addObjects()
+            addObjects(1)
         except rospy.ServiceException as e:
             print("Service call failed: %s" % e)

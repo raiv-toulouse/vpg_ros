@@ -1,4 +1,5 @@
 ---
-float32[] tab1
+int8[] tab_i
+float64[] tab_f
 int8 nbLignes
 int8 nbColonnes

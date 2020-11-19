@@ -22,7 +22,7 @@ def test_camera():
         width = resp.width
         height = resp.height
         color_image = np.asarray(resp.colorImage, dtype=np.uint8).reshape(width, height, 3)
-        depth_image = np.asarray(resp.depthImage, dtype=np.float32).reshape(width, height)
+        depth_image = np.asarray(resp.depthImage, dtype=np.float64).reshape(width, height)
         show_image(color_image, 'RGB')
         depth_image_gray = (depth_image * 255 / np.max(depth_image)).astype('uint8')
         show_image(depth_image_gray, 'L')

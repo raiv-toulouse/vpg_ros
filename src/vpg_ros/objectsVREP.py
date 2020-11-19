@@ -88,17 +88,25 @@ class ObjectsVREP(object):
         num_obj = req.nb_obj
         # Randomly choose objects to add to scene
         mesh_list = os.listdir(os.path.abspath(self.obj_mesh_dir))
-        obj_mesh_ind = np.random.randint(0, len(mesh_list), size=num_obj)
+        mesh_list = ['6.obj','4.obj','0.obj'] #PJ
+        self.obj_mesh_color = color_space[np.asarray(range(num_obj)) % 10, :]  #PJ
+        #PJ obj_mesh_ind = np.random.randint(0, len(mesh_list), size=num_obj)
+        obj_mesh_ind = np.array([0,1,2])
+        l_dx = [-0.5, -0.44, -0.4] #PJ
+        l_dy = [0.0, 0.0, -0.1]
+        l_or = [ [0,0,0], [0,0,0], [0,0,0]]
         # Add each object to robot workspace at x,y location and orientation (random or pre-loaded)
         for object_idx in range(num_obj):
             curr_mesh_file = os.path.join(self.obj_mesh_dir, mesh_list[obj_mesh_ind[object_idx]])
+            print(curr_mesh_file)
             curr_mesh_file = os.path.abspath(curr_mesh_file)
-            drop_x = (self.workspace_limits[0][1] - self.workspace_limits[0][0] - 0.2) * np.random.random_sample() + self.workspace_limits[0][0] + 0.1
-            drop_y = (self.workspace_limits[1][1] - self.workspace_limits[1][0] - 0.2) * np.random.random_sample() + self.workspace_limits[1][0] + 0.1
-            object_position = [drop_x, drop_y, 0.15]
-            object_orientation = [2*np.pi*np.random.random_sample(), 2*np.pi*np.random.random_sample(), 2*np.pi*np.random.random_sample()]
+            drop_x = l_dx[object_idx] #PJ (self.workspace_limits[0][1] - self.workspace_limits[0][0] - 0.2) * np.random.random_sample() + self.workspace_limits[0][0] + 0.1
+            drop_y = l_dy[object_idx] #PJ (self.workspace_limits[1][1] - self.workspace_limits[1][0] - 0.2) * np.random.random_sample() + self.workspace_limits[1][0] + 0.1
+            object_position = [drop_x, drop_y,  0.01 ]#PJ 0.15]
+            object_orientation = l_or[object_idx] # [2*np.pi*np.random.random_sample(), 2*np.pi*np.random.random_sample(), 2*np.pi*np.random.random_sample()]
             ind_color = random.randrange(10)
-            object_color = list(color_space[ind_color])
+            #PJ object_color = list(color_space[ind_color])
+            object_color = [self.obj_mesh_color[object_idx][0], self.obj_mesh_color[object_idx][1], self.obj_mesh_color[object_idx][2]]
             self.add_object(object_position, object_orientation, object_color, curr_mesh_file)
         return AddObjectsResponse()
 

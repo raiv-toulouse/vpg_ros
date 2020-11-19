@@ -56,6 +56,7 @@ class CameraVREP(object):
         h, w, c = color_img.shape
         color_numpy_1d = tuple(color_img.reshape(1, -1)[0])
         depth_numpy_1d = tuple(depth_img.reshape(1, -1)[0])
+        print('conversion OK')
         return ColorDepthImagesResponse(h, w, color_numpy_1d, depth_numpy_1d)
 
     def get_camera_data(self):
@@ -71,15 +72,26 @@ class CameraVREP(object):
         color_img[color_img < 0] += 1
         color_img *= 255
         color_img = np.fliplr(color_img)
-        color_img = color_img.astype(np.uint8)
+        color_img = color_img.astype(np.int8)
+        print('min = {}'.format(np.min(color_img)))
+        print(np.max(color_img))
         # Get depth image from simulation
         sim_ret, resolution, depth_buffer = vrep.simxGetVisionSensorDepthBuffer(self.sim_client, self.cam_handle, vrep.simx_opmode_blocking)
-        depth_img = np.asarray(depth_buffer, dtype=np.float32)
+        depth_img = np.asarray(depth_buffer)  #, dtype=np.float64)
+        import sys
+        print(sys.version)
+        print(depth_img.dtype)
+        print("MIN 1 = {}".format(np.min(depth_img)))
+        print("MAX 1 = {}".format(np.max(depth_img)))
         depth_img.shape = (resolution[1], resolution[0])
         depth_img = np.fliplr(depth_img)
         z_near = 0.01
         z_far = 10
         depth_img = depth_img * (z_far - z_near) + z_near
+        print(depth_img.dtype)
+        print("MIN = {}".format(np.min(depth_img)))
+        print("MAX = {}".format(np.max(depth_img)))
+        print('fin de get_camera_data')
         return color_img, depth_img
 
     def euler2rotm(self, theta):
