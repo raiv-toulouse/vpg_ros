@@ -1,5 +1,5 @@
 ---
 int32 width
 int32 height
-int8[] colorImage
+uint8[] colorImage
 float64[] depthImage

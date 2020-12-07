@@ -5,7 +5,7 @@ import vpg_ros.vrep as vrep
 import os,time, random
 import numpy as np
 from vpg_ros.srv import AddObjects,AddObjectsResponse, AddOneObject, AddOneObjectResponse
-from std_srvs.srv import Empty
+from std_srvs.srv import Empty,EmptyResponse
 
 # Define colors for object meshes (Tableau palette)
 color_space = np.asarray([[78.0, 121.0, 167.0],  # blue
@@ -50,19 +50,6 @@ class ObjectsVREP(object):
             obj_positions.append(object_position)
         return obj_positions
 
-    def move_object(self,req):
-        """
-        Used to remove an object from the gripper and put it outside the workspace.
-        The one which is removed is the one with the highest elevation.
-        :return:
-        """
-        object_positions = np.asarray(self.get_obj_positions())
-        object_positions = object_positions[:, 2]
-        grasped_object_ind = np.argmax(object_positions)
-        grasped_object_handle = self.object_handles[grasped_object_ind]
-        vrep.simxSetObjectPosition(self.sim_client, grasped_object_handle, -1,
-                                   (-0.5, 0.5 + 0.05 * float(grasped_object_ind), 0.1), vrep.simx_opmode_blocking)
-
     def add_object(self, object_position, object_orientation, object_color, curr_mesh_file):
         """
         Used by add_objects and add_one_cube methods to add an object to VREP and update object_handles list.
@@ -83,30 +70,37 @@ class ObjectsVREP(object):
         self.object_handles.append(curr_shape_handle)
         time.sleep(2)
 
+    # Gestion des services
+
+    def move_object(self, req):
+        """
+        Used to remove an object from the gripper and put it outside the workspace.
+        The one which is removed is the one with the highest elevation.
+        :return:
+        """
+        object_positions = np.asarray(self.get_obj_positions())
+        object_positions = object_positions[:, 2]
+        grasped_object_ind = np.argmax(object_positions)
+        grasped_object_handle = self.object_handles[grasped_object_ind]
+        vrep.simxSetObjectPosition(self.sim_client, grasped_object_handle, -1,
+                                   (-0.5, 0.5 + 0.05 * float(grasped_object_ind), 0.1), vrep.simx_opmode_blocking)
+        return EmptyResponse()
 
     def add_objects(self,req):
         num_obj = req.nb_obj
         # Randomly choose objects to add to scene
         mesh_list = os.listdir(os.path.abspath(self.obj_mesh_dir))
-        mesh_list = ['6.obj','4.obj','0.obj'] #PJ
-        self.obj_mesh_color = color_space[np.asarray(range(num_obj)) % 10, :]  #PJ
-        #PJ obj_mesh_ind = np.random.randint(0, len(mesh_list), size=num_obj)
-        obj_mesh_ind = np.array([0,1,2])
-        l_dx = [-0.5, -0.44, -0.4] #PJ
-        l_dy = [0.0, 0.0, -0.1]
-        l_or = [ [0,0,0], [0,0,0], [0,0,0]]
+        obj_mesh_ind = np.random.randint(0, len(mesh_list), size=num_obj)
+        obj_mesh_color = color_space[np.asarray(range(num_obj)) % 10, :]
         # Add each object to robot workspace at x,y location and orientation (random or pre-loaded)
         for object_idx in range(num_obj):
             curr_mesh_file = os.path.join(self.obj_mesh_dir, mesh_list[obj_mesh_ind[object_idx]])
-            print(curr_mesh_file)
             curr_mesh_file = os.path.abspath(curr_mesh_file)
-            drop_x = l_dx[object_idx] #PJ (self.workspace_limits[0][1] - self.workspace_limits[0][0] - 0.2) * np.random.random_sample() + self.workspace_limits[0][0] + 0.1
-            drop_y = l_dy[object_idx] #PJ (self.workspace_limits[1][1] - self.workspace_limits[1][0] - 0.2) * np.random.random_sample() + self.workspace_limits[1][0] + 0.1
-            object_position = [drop_x, drop_y,  0.01 ]#PJ 0.15]
-            object_orientation = l_or[object_idx] # [2*np.pi*np.random.random_sample(), 2*np.pi*np.random.random_sample(), 2*np.pi*np.random.random_sample()]
-            ind_color = random.randrange(10)
-            #PJ object_color = list(color_space[ind_color])
-            object_color = [self.obj_mesh_color[object_idx][0], self.obj_mesh_color[object_idx][1], self.obj_mesh_color[object_idx][2]]
+            drop_x = (self.workspace_limits[0][1] - self.workspace_limits[0][0] - 0.2) * np.random.random_sample() + self.workspace_limits[0][0] + 0.1
+            drop_y = (self.workspace_limits[1][1] - self.workspace_limits[1][0] - 0.2) * np.random.random_sample() + self.workspace_limits[1][0] + 0.1
+            object_position = [drop_x, drop_y, 0.15]
+            object_orientation = [2*np.pi*np.random.random_sample(), 2*np.pi*np.random.random_sample(), 2*np.pi*np.random.random_sample()]
+            object_color = [obj_mesh_color[object_idx][0], obj_mesh_color[object_idx][1], obj_mesh_color[object_idx][2]]
             self.add_object(object_position, object_orientation, object_color, curr_mesh_file)
         return AddObjectsResponse()
 

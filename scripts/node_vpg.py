@@ -27,6 +27,8 @@ if __name__ == '__main__':
     parser.add_argument('--save_visualizations', dest='save_visualizations', action='store_true', default=False,
                         help='save visualizations of FCN predictions?')
 
+    parser.add_argument('--num_obj', dest='num_obj', type=int, action='store', default=10, help='number of objects to add to simulation')
+
     # Run main program with specified arguments
     args = parser.parse_args()
     simu = Simulation(args)

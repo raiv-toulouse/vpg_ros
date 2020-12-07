@@ -1,4 +1,4 @@
 ---
-float32 depth_scale
-float32[] intrinsics
-float32[] pose
+float64 depth_scale
+float64[] intrinsics
+float64[] pose

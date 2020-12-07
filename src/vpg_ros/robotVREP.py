@@ -5,7 +5,7 @@ import numpy as np
 import vpg_ros.vrep as vrep
 from vpg_ros.srv import GripperCmd, GripperCmdResponse, CoordAction, CoordActionResponse, CoordActionRequest
 import rospy
-from std_srvs.srv import Empty
+from std_srvs.srv import Empty,EmptyResponse
 
 
 class RobotVREP(object):
@@ -14,6 +14,7 @@ class RobotVREP(object):
         s = rospy.Service('cmd_gripper', GripperCmd, self.cmdGripper)
         s = rospy.Service('robot_grasp', CoordAction, self.grasp)
         s = rospy.Service('robot_push', CoordAction, self.push)
+        s = rospy.Service('restart_sim', Empty, self.restart_sim)
         # Make sure to have the server side running in V-REP:
         # in a child script of a V-REP scene, add following command
         # to be executed just once, at simulation start:
@@ -28,7 +29,7 @@ class RobotVREP(object):
         # MODIFY remoteApiConnections.txt
 
         # Connect to simulator
-        self.sim_client = vrep.simxStart(ip_vrep, 19997, True, True, 5000, 5)  # Connect to V-REP on port 19997
+        self.sim_client = vrep.simxStart(ip_vrep, 20003, True, True, 5000, 5)  # Connect to V-REP on port 20003
         if self.sim_client == -1:
             print('Failed to connect to simulation (V-REP remote API server). Exiting.')
             exit()
@@ -112,6 +113,21 @@ class RobotVREP(object):
             print("Vector {} is null in grasp")
 
     # Gestion des services
+
+    def restart_sim(self,req):
+        sim_ret, self.UR5_target_handle = vrep.simxGetObjectHandle(self.sim_client,'UR5_target',vrep.simx_opmode_blocking)
+        vrep.simxSetObjectPosition(self.sim_client, self.UR5_target_handle, -1, (-0.5,0,0.3), vrep.simx_opmode_blocking)
+        vrep.simxStopSimulation(self.sim_client, vrep.simx_opmode_blocking)
+        vrep.simxStartSimulation(self.sim_client, vrep.simx_opmode_blocking)
+        time.sleep(1)
+        sim_ret, self.RG2_tip_handle = vrep.simxGetObjectHandle(self.sim_client, 'UR5_tip', vrep.simx_opmode_blocking)
+        sim_ret, gripper_position = vrep.simxGetObjectPosition(self.sim_client, self.RG2_tip_handle, -1, vrep.simx_opmode_blocking)
+        while gripper_position[2] > 0.4: # V-REP bug requiring multiple starts and stops to restart
+            vrep.simxStopSimulation(self.sim_client, vrep.simx_opmode_blocking)
+            vrep.simxStartSimulation(self.sim_client, vrep.simx_opmode_blocking)
+            time.sleep(1)
+            sim_ret, gripper_position = vrep.simxGetObjectPosition(self.sim_client, self.RG2_tip_handle, -1, vrep.simx_opmode_blocking)
+        return EmptyResponse()
 
     def cmdGripper(self, req):
         """

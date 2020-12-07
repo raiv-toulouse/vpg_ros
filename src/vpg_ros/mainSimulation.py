@@ -7,13 +7,14 @@ import threading
 import numpy as np
 import cv2
 import rospy
+import array
 from vpg_ros.trainer import Trainer
 from vpg_ros.logger import Logger
 from vpg_ros.utils import *
 from vpg_ros.srv import CoordAction, InfoCamera
 from vpg_ros.srv import ColorDepthImages
 from vpg_ros.srv import AddObjects
-
+from std_srvs.srv import Empty
 
 class Simulation:
     def __init__(self, args):
@@ -21,6 +22,7 @@ class Simulation:
         # --------------- Setup options ---------------
         self.workspace_limits = np.asarray([[-0.724, -0.276], [-0.224, 0.224], [-0.0001, 0.4]])  # Cols: min max, Rows: x y z (define workspace limits in robot coordinates)
         self.heightmap_resolution = args.heightmap_resolution  # Meters per pixel of heightmap
+        self.num_obj = args.num_obj  # Nb of objects
         # ------------- Algorithm options -------------
         future_reward_discount = args.future_reward_discount
         explore_rate_decay = args.explore_rate_decay
@@ -31,8 +33,8 @@ class Simulation:
         np.random.seed(1234)
         # Setup virtual camera in simulation
         self.get_camera_informations()
-        # Create objects adn add them to VREP
-        self.create_objects()
+        # Create objects and add them to VREP
+        self.create_objects(self.num_obj)
         # Initialize trainer
         self.trainer = Trainer(future_reward_discount)
         # Initialize data logger
@@ -169,6 +171,14 @@ class Simulation:
             stuff_count = np.zeros(self.valid_depth_heightmap.shape)
             stuff_count[self.valid_depth_heightmap > 0.02] = 1
             empty_threshold = 300
+            if np.sum(stuff_count) < empty_threshold or (self.no_change_count[0] + self.no_change_count[1] > 10):
+                self.no_change_count = [0, 0]
+                print('Not enough objects in view (value: %d)! Repositioning objects.' % (np.sum(stuff_count)))
+                self.restart_sim()
+                self.create_objects(self.num_obj)
+                self.trainer.clearance_log.append([self.trainer.iteration])
+                self.logger.write_to_log('clearance', self.trainer.clearance_log)
+                continue
             if not self.exit_called:
                 # Run forward pass with network to get affordances
                 self.push_predictions, self.grasp_predictions, state_feat = self.trainer.forward(self.color_heightmap, self.valid_depth_heightmap, is_volatile=True)
@@ -273,7 +283,21 @@ class Simulation:
             iteration_time_1 = time.time()
             print('Time elapsed: %f' % (iteration_time_1 - iteration_time_0))
 
-    # Méthodes faisant le lien avec les autres obejts en appelant leurs services
+    # Méthodes faisant le lien avec les autres objets en appelant leurs services
+
+    def restart_sim(self):
+        '''
+        Appel au service restart_sim du node robot
+        :return:
+        '''
+        rospy.wait_for_service('restart_sim')
+        try:
+            cmdRestartSim = rospy.ServiceProxy('restart_sim', Empty)
+            resp = cmdRestartSim()
+            if resp:
+                print('Fin de restart_sim')
+        except rospy.ServiceException as e:
+            print("Service restart_sim call failed: %s" % e)
 
     def push(self, position, angle):
         '''
@@ -313,6 +337,7 @@ class Simulation:
             resp = getImages()
             width = resp.width
             height = resp.height
+            resp.colorImage = list(array.array("B", resp.colorImage))
             color_image = np.asarray(resp.colorImage, dtype=np.uint8).reshape(width, height, 3)
             depth_image = np.asarray(resp.depthImage, dtype=np.float64).reshape(width, height)
             return color_image, depth_image
@@ -325,15 +350,15 @@ class Simulation:
             getInfos = rospy.ServiceProxy('get_camera_informations', InfoCamera)
             resp = getInfos()
             self.cam_depth_scale = resp.depth_scale
-            self.cam_intrinsics = np.asarray(resp.intrinsics, dtype=np.float32).reshape(3, 3)
-            self.cam_pose = np.asarray(resp.pose, dtype=np.float32).reshape(4, 4)
+            self.cam_intrinsics = np.asarray(resp.intrinsics, dtype=np.float64).reshape(3, 3)
+            self.cam_pose = np.asarray(resp.pose, dtype=np.float64).reshape(4, 4)
         except rospy.ServiceException as e:
             print("Service call failed: %s" % e)
 
-    def create_objects(self):
+    def create_objects(self,nb_obj):
         rospy.wait_for_service('add_objects')
         try:
             addObjects = rospy.ServiceProxy('add_objects', AddObjects)
-            addObjects(1)
+            addObjects(nb_obj)
         except rospy.ServiceException as e:
             print("Service call failed: %s" % e)
