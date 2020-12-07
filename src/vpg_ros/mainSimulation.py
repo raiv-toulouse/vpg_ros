@@ -27,7 +27,7 @@ class Simulation:
         future_reward_discount = args.future_reward_discount
         explore_rate_decay = args.explore_rate_decay
         # ------ Pre-loading and logging options ------
-        logging_directory = os.path.abspath('logs')
+        logging_directory = os.path.abspath(args.logging_directory)
         save_visualizations = args.save_visualizations  # Save visualizations of FCN predictions? Takes 0.6s per training step if set to True
         # Set random seed
         np.random.seed(1234)
