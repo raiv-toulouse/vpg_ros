@@ -36,7 +36,6 @@ class Trainer(object):
         self.label_value_log = []
         self.reward_value_log = []
         self.predicted_value_log = []
-        self.use_heuristic_log = []
         self.is_exploit_log = []
         self.clearance_log = []
 
@@ -58,10 +57,6 @@ class Trainer(object):
         self.reward_value_log = self.reward_value_log[0:self.iteration]
         self.reward_value_log.shape = (self.iteration,1)
         self.reward_value_log = self.reward_value_log.tolist()
-        self.use_heuristic_log = np.loadtxt(os.path.join(transitions_directory, 'use-heuristic.log.txt'), delimiter=' ')
-        self.use_heuristic_log = self.use_heuristic_log[0:self.iteration]
-        self.use_heuristic_log.shape = (self.iteration,1)
-        self.use_heuristic_log = self.use_heuristic_log.tolist()
         self.is_exploit_log = np.loadtxt(os.path.join(transitions_directory, 'is-exploit.log.txt'), delimiter=' ')
         self.is_exploit_log = self.is_exploit_log[0:self.iteration]
         self.is_exploit_log.shape = (self.iteration,1)
