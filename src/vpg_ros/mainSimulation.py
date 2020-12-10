@@ -17,6 +17,14 @@ from vpg_ros.srv import AddObjects
 from vpg_ros.threadActionRunner import ThreadActionRunner
 from std_srvs.srv import Empty
 
+#
+# Paramètres à ajuster
+#
+change_threshold = 300  # Nb min de pixels qui doivent changer pour que l'on considère q'un push a été efficace
+min_height = 0.02  # Tous les pixels au dessus de cet altitude sont considérés comme faisant partie d'un objet
+empty_threshold = 300 # Nb min de pixels en dessous duquel on considère qu'il n'y a plus d'objet dans la scène
+
+
 class Simulation:
     def __init__(self, args):
         # --------------- Setup options ---------------
@@ -43,6 +51,8 @@ class Simulation:
         self.logger.save_heightmap_info(self.workspace_limits, self.heightmap_resolution)  # Save heightmap parameters
         # Initialize variables for heuristic bootstrapping and exploration probability
         self.no_change_count = [2, 2]
+        # Initialize exploration probability
+        self.explore_prob = 0.5
 
     def execute(self):
         # Quick hack for nonlocal memory between threads in Python 2
@@ -71,10 +81,9 @@ class Simulation:
             self.logger.save_heightmaps(self.trainer.iteration, self.color_heightmap, self.valid_depth_heightmap, '0')
             # Reset simulation or pause real-world training if table is empty
             stuff_count = np.zeros(self.valid_depth_heightmap.shape)
-            stuff_count[self.valid_depth_heightmap > 0.02] = 1
-            empty_threshold = 300
-            if np.sum(stuff_count) < empty_threshold or (self.no_change_count[0] + self.no_change_count[1] > 10):
-                self.no_change_count = [0, 0]
+            stuff_count[self.valid_depth_heightmap > min_height] = 1
+            if np.sum(stuff_count) < empty_threshold or (self.no_change_count[0] + self.no_change_count[1] > 10): # Plus assez d'objets ou cela fait trop de push et de grasp sans succès
+                self.no_change_count = [0, 0]  # ràz
                 print('Not enough objects in view (value: %d)! Repositioning objects.' % (np.sum(stuff_count)))
                 self.restart_sim()
                 self.create_objects(self.num_obj)
@@ -84,25 +93,24 @@ class Simulation:
             # Run forward pass with network to get affordances
             push_predictions, grasp_predictions, state_feat = self.trainer.forward(self.color_heightmap, self.valid_depth_heightmap, is_volatile=True)
             # Execute best primitive action on robot in another thread
-            # Parallel thread to process network output and execute actions
-            thread_action_runner = ThreadActionRunner(self.trainer, self.logger, push_predictions, grasp_predictions, self.workspace_limits, self.save_visualizations,
+            thread_action_runner = ThreadActionRunner(self.explore_prob, self.trainer, self.logger, push_predictions, grasp_predictions, self.workspace_limits, self.save_visualizations,
                                                       self.heightmap_resolution, self.valid_depth_heightmap, self.color_heightmap, shared_variables)
             thread_action_runner.start()
             # Run training iteration in current thread (aka training thread)
-            if begin_training:
+            if begin_training: # Pour ne pas faire le training dès la première image (on attendent d'en avoir au moins 2)
                 self.train()
             # Sync both action thread and training thread
             thread_action_runner.join()
             # Save information for next training step
-            begin_training = True
+            begin_training = True # On a au moins pris une image, à la prochaine itération, on pourra lancer le training
             self.prev_color_heightmap = self.color_heightmap.copy()
             self.prev_depth_heightmap = self.depth_heightmap.copy()
             self.prev_valid_depth_heightmap = self.valid_depth_heightmap.copy()
+            self.prev_push_predictions = push_predictions.copy()
+            self.prev_grasp_predictions = grasp_predictions.copy()
             self.prev_push_success = shared_variables['push_success']
             self.prev_grasp_success = shared_variables['grasp_success']
             self.prev_primitive_action = shared_variables['primitive_action']
-            self.prev_push_predictions = push_predictions.copy()
-            self.prev_grasp_predictions = grasp_predictions.copy()
             self.prev_best_pix_ind = shared_variables['best_pix_ind']
             self.trainer.iteration += 1
             iteration_time_1 = time.time()
@@ -116,8 +124,7 @@ class Simulation:
         depth_diff[depth_diff > 0.3] = 0
         depth_diff[depth_diff < 0.01] = 0
         depth_diff[depth_diff > 0] = 1
-        change_threshold = 300
-        change_value = np.sum(depth_diff)
+        change_value = np.sum(depth_diff)  # How many pixels in [0.01cm , 0.3cm]
         change_detected = change_value > change_threshold or self.prev_grasp_success
         print('Change detected: %r (value: %d)' % (change_detected, change_value))
         if change_detected:
@@ -131,8 +138,7 @@ class Simulation:
             elif self.prev_primitive_action == 'grasp':
                 self.no_change_count[1] += 1
         # Compute training labels
-        label_value, prev_reward_value = self.trainer.get_label_value(self.prev_primitive_action, self.prev_push_success, self.prev_grasp_success, change_detected, self.prev_push_predictions,
-                                                                      self.prev_grasp_predictions, self.color_heightmap, self.valid_depth_heightmap)
+        label_value, prev_reward_value = self.trainer.get_label_value(self.prev_primitive_action, self.prev_grasp_success, change_detected, self.color_heightmap, self.valid_depth_heightmap)
         self.trainer.label_value_log.append([label_value])
         self.logger.write_to_log('label-value', self.trainer.label_value_log)
         self.trainer.reward_value_log.append([prev_reward_value])
@@ -140,7 +146,7 @@ class Simulation:
         # Backpropagate
         self.trainer.backprop(self.prev_color_heightmap, self.prev_valid_depth_heightmap, self.prev_primitive_action, self.prev_best_pix_ind, label_value)
         # Adjust exploration probability
-        explore_prob = max(0.5 * np.power(0.9998, self.trainer.iteration), 0.1)
+        self.explore_prob = max(0.5 * np.power(0.9998, self.trainer.iteration), 0.1)
         # Do sampling for experience replay
         sample_primitive_action = self.prev_primitive_action
         if sample_primitive_action == 'push':
@@ -149,7 +155,7 @@ class Simulation:
         elif sample_primitive_action == 'grasp':
             sample_primitive_action_id = 1
             sample_reward_value = 0 if prev_reward_value == 1 else 1
-        # Get samples of the same primitive but with different results
+        # Get samples of the same primitive but with different results (commentaire pas exact? car results identiques)
         sample_ind = np.argwhere(np.logical_and(np.asarray(self.trainer.reward_value_log)[1:self.trainer.iteration, 0] == sample_reward_value,
                                                 np.asarray(self.trainer.executed_action_log)[1:self.trainer.iteration, 0] == sample_primitive_action_id))
         if sample_ind.size > 0:

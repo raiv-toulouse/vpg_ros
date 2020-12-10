@@ -8,8 +8,9 @@ import rospy
 from vpg_ros.srv import CoordAction
 
 class ThreadActionRunner(Thread):
-    def __init__(self, trainer, logger, push_predictions, grasp_predictions, workspace_limits, save_visualizations, heightmap_resolution, valid_depth_heightmap, color_heightmap, output_variables):
+    def __init__(self, explore_prob, trainer, logger, push_predictions, grasp_predictions, workspace_limits, save_visualizations, heightmap_resolution, valid_depth_heightmap, color_heightmap, output_variables):
         Thread.__init__(self)
+        self.explore_prob = explore_prob
         self.push_predictions = push_predictions
         self.grasp_predictions = grasp_predictions
         self.output_variables = output_variables
@@ -22,17 +23,17 @@ class ThreadActionRunner(Thread):
         self.save_visualizations = save_visualizations
 
     def run(self):
-        explore_prob = 0.5
+        self.explore_prob = 0.5
         # Determine whether grasping or pushing should be executed based on network predictions
         best_push_conf = np.max(self.push_predictions)
         best_grasp_conf = np.max(self.grasp_predictions)
         print('Primitive confidence scores: %f (push), %f (grasp)' % (best_push_conf, best_grasp_conf))
-        explore_actions = np.random.uniform() < explore_prob
+        explore_actions = np.random.uniform() < self.explore_prob
         if explore_actions:  # Exploration (do random action)
-            print('Strategy: explore (exploration probability: %f)' % explore_prob)
+            print('Strategy: explore (exploration probability: %f)' % self.explore_prob)
             action_to_execute = 'push' if np.random.randint(0, 2) == 0 else 'grasp'
         else: # Exploitation (do best action)
-            print('Strategy: exploit (exploration probability: %f)' % explore_prob)
+            print('Strategy: exploit (exploration probability: %f)' % self.explore_prob)
             action_to_execute = 'push' if best_push_conf > best_grasp_conf else 'grasp'
         self.trainer.is_exploit_log.append([0 if explore_actions else 1])
         self.logger.write_to_log('is-exploit', self.trainer.is_exploit_log)

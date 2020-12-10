@@ -114,7 +114,7 @@ class Trainer(object):
         return push_predictions, grasp_predictions, state_feat
 
 
-    def get_label_value(self, primitive_action, push_success, grasp_success, change_detected, prev_push_predictions, prev_grasp_predictions, next_color_heightmap, next_depth_heightmap):
+    def get_label_value(self, primitive_action, grasp_success, change_detected, next_color_heightmap, next_depth_heightmap):
         # Compute current reward
         current_reward = 0
         if primitive_action == 'push':
@@ -133,8 +133,8 @@ class Trainer(object):
             # push_predictions_difference = next_push_predictions - prev_push_predictions
             # grasp_predictions_difference = next_grasp_predictions - prev_grasp_predictions
             # future_reward = max(np.max(push_predictions_difference), np.max(grasp_predictions_difference))
-        print('Current reward: %f' % (current_reward))
-        print('Future reward: %f' % (future_reward))
+        print('Current reward: %f' % current_reward)
+        print('Future reward: %f' % future_reward)
         expected_reward = current_reward + self.future_reward_discount * future_reward
         print('Expected reward: %f + %f x %f = %f' % (current_reward, self.future_reward_discount, future_reward, expected_reward))
         return expected_reward, current_reward
